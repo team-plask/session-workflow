@@ -117,7 +117,26 @@ Update the worktree's `.claude/session-state.json` with these fields.
 
 ### Step 5: Launch Claude in Worktree
 
-Open a new Terminal tab with Claude running in the worktree:
+Open Claude in a new split pane in Ghostty (or fall back to Terminal.app):
+
+If running inside Ghostty (check `$GHOSTTY_RESOURCES_DIR`):
+
+```bash
+osascript <<'APPLESCRIPT'
+tell application "System Events"
+    tell (first process whose bundle identifier is "com.mitchellh.ghostty")
+        keystroke "d" using command down
+        delay 0.8
+        set the clipboard to "cd <worktree-path> && claude"
+        keystroke "v" using command down
+        delay 0.1
+        keystroke return
+    end tell
+end tell
+APPLESCRIPT
+```
+
+Otherwise fall back to Terminal.app:
 
 ```bash
 osascript -e 'tell application "Terminal" to do script "cd <worktree-path> && claude"'
@@ -134,9 +153,9 @@ Linear: <identifier> - <url>
 Branch: <gitBranchName>
 Worktree: <worktrees-dir>/<sanitized-branch>/
 Supabase Branch: <supabaseBranchId> (project ref: <supabaseBranchProjectRef>)
-New Terminal tab opened with Claude session
+New split opened with Claude session
 ```
 
 If Supabase branching was not enabled, omit the Supabase line.
 
-Tell the user to switch to the new Terminal tab to start working.
+Tell the user to switch to the new split pane to start working.
