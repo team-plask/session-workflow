@@ -203,6 +203,10 @@ Completed worktrees are cleaned up automatically on the next `/start` or session
 3. Prunes orphaned worktree references
 4. Deletes the session tracking file
 
+### Worktree Path Safety
+
+Each worktree gets a `CLAUDE.local.md` file with explicit path safety instructions. This works around a [Claude Code bug](https://github.com/anthropics/claude-code/issues/8771) where file operations in worktrees can accidentally resolve to the parent repository path instead of the worktree directory. The generated instructions remind Claude to use relative paths (`./`) and verify `pwd` before writing files.
+
 ## License
 
 MIT

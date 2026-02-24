@@ -46,4 +46,22 @@ if [ -d "${MAIN_REPO}/.agents/skills" ]; then
   done
 fi
 
+# Create worktree-specific path safety instructions (Claude Code bug workaround)
+# See: https://github.com/anthropics/claude-code/issues/8771
+cat > "${WORKTREE_PATH}/CLAUDE.local.md" << 'LOCALEOF'
+# Worktree Path Safety
+
+**This is a git worktree, NOT the main repository.**
+
+ALL file paths are relative to THIS directory (the current working directory from `<env>`).
+NEVER resolve paths to the parent repository at the main repo location.
+
+When creating or editing files:
+- Use `./` prefix: `./supabase/migrations/`, `./apps/web/`, `./packages/`
+- Verify with `pwd` before writing if unsure
+- The `supabase/` directory means `./supabase/` in THIS worktree directory
+
+Session state is in `.claude/session-state.json` in this directory.
+LOCALEOF
+
 echo "${WORKTREE_PATH}"
