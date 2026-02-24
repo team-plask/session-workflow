@@ -2,7 +2,7 @@
 name: start
 description: Start a task session — creates a Linear issue, git worktree, and launches a new Claude session. Use when the user says /start or wants to begin a new isolated task.
 user-invocable: true
-allowed-tools: Bash(git:*) Bash(osascript:*) Bash(bash:*) mcp__linear-server__create_issue mcp__claude_ai_Linear__create_issue
+allowed-tools: Bash(git:*) Bash(osascript:*) Bash(bash:*) mcp__linear-server__create_issue mcp__claude_ai_Linear__create_issue mcp__claude_ai_Supabase__create_branch mcp__claude_ai_Supabase__get_cost mcp__claude_ai_Supabase__confirm_cost
 ---
 
 # Start Task Session
@@ -21,7 +21,7 @@ Read `.claude/session-config.json` from the project root. If it doesn't exist, u
 {
   "linear": { "team": "Engineering", "labels": ["claude-session"], "startState": "started" },
   "github": { "baseBranch": "main" },
-  "supabase": { "directory": "", "branchingEnabled": false },
+  "supabase": { "branchingEnabled": false, "projectId": "", "organizationId": "" },
   "entire": { "enabled": false },
   "worktrees": { "directory": ".worktrees" }
 }
@@ -92,7 +92,30 @@ The script will:
 - Write `.claude/session-state.json` inside the worktree
 - Write `.claude/worktree-sessions/<sanitized-branch>.json` in the main repo
 
-### Step 4: Launch Claude in Worktree
+### Step 4: Create Supabase Branch
+
+If `config.supabase.branchingEnabled` is true and `config.supabase.projectId` is set:
+
+Use `mcp__claude_ai_Supabase__get_cost` with:
+- type: "branch"
+- organization_id: config.supabase.organizationId
+
+Then `mcp__claude_ai_Supabase__confirm_cost` with the returned amount.
+
+Then `mcp__claude_ai_Supabase__create_branch` with:
+- project_id: config.supabase.projectId
+- name: the Linear branch name (sanitized)
+- confirm_cost_id: from confirm_cost response
+
+From the response, extract the branch's `project_ref` (the branch's own project ID for queries).
+
+Add to the session-state JSON:
+- "supabaseBranchId": "<branch ID>"
+- "supabaseBranchProjectRef": "<branch project_ref>"
+
+Update the worktree's `.claude/session-state.json` with these fields.
+
+### Step 5: Launch Claude in Worktree
 
 Open a new Terminal tab with Claude running in the worktree:
 
@@ -102,7 +125,7 @@ osascript -e 'tell application "Terminal" to do script "cd <worktree-path> && cl
 
 Replace `<worktree-path>` with the actual worktree path returned from Step 3.
 
-### Step 5: Confirm
+### Step 6: Confirm
 
 Print a summary:
 
@@ -110,7 +133,10 @@ Print a summary:
 Linear: <identifier> - <url>
 Branch: <gitBranchName>
 Worktree: <worktrees-dir>/<sanitized-branch>/
+Supabase Branch: <supabaseBranchId> (project ref: <supabaseBranchProjectRef>)
 New Terminal tab opened with Claude session
 ```
+
+If Supabase branching was not enabled, omit the Supabase line.
 
 Tell the user to switch to the new Terminal tab to start working.

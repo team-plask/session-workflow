@@ -25,7 +25,6 @@ Read `.claude/session-config.json` if it exists, otherwise use these defaults:
 - linear.labels: ["claude-session"]
 - linear.doneState: "done"
 - github.baseBranch: "main"
-- supabase.directory: ""
 - supabase.branchingEnabled: false
 - entire.enabled: false
 
@@ -54,15 +53,11 @@ entire explain --short 2>&1 || true
 
 Write a concise summary of what changed.
 
-### W2: Check for Supabase Changes
+### W2: Note Supabase Branch
 
-If `config.supabase.branchingEnabled` is true AND `config.supabase.directory` is set:
+Read `supabaseBranchId` and `supabaseBranchProjectRef` from `.claude/session-state.json`.
 
-```bash
-git diff main --name-only -- <supabase-directory>
-```
-
-Note any changed files. If there are changes, you will add a "Database Changes" section to the PR.
+If a Supabase branch exists, set `hasSupabaseBranch = true`.
 
 ### W3: Commit Uncommitted Work
 
@@ -82,26 +77,26 @@ git push -u origin $(git branch --show-current)
 
 THIS STEP IS MANDATORY. You MUST create a PR.
 
-Build the PR body with your summary. If there were Supabase changes from W2, append:
+Build the PR body with your summary.
+
+If `hasSupabaseBranch`:
+Add to the PR body:
 
 ```
-## Database Changes
+## Supabase Branch
 
-This PR includes Supabase schema changes that will trigger a preview branch:
-- <list files>
+This PR has an associated Supabase preview branch.
+- Branch ID: `<supabaseBranchId>`
+- Project Ref: `<supabaseBranchProjectRef>`
 
-The Supabase GitHub integration will automatically create a preview database branch for this PR.
+**After merging this PR**, merge the Supabase branch:
+Use `mcp__claude_ai_Supabase__merge_branch` with branch_id: `<supabaseBranchId>`
 ```
 
 Now create the PR:
 
 ```bash
 gh pr create --title "<linearIssueIdentifier>: <short-title>" --body "<body>" --base main
-```
-
-If Supabase changes exist, also run:
-```bash
-gh pr edit --add-label "supabase" 2>/dev/null || true
 ```
 
 Save the PR URL from the output.
@@ -142,7 +137,7 @@ Also update local `.claude/session-state.json` status to "done".
 Print:
 - PR URL
 - Linear issue: <identifier> → Done
-- If Supabase changes: "Supabase preview branch will be created automatically"
+- If `hasSupabaseBranch`: "Supabase branch `<supabaseBranchId>` should be merged after PR is merged."
 - "Close this terminal tab."
 
 ---

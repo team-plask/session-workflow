@@ -9,13 +9,14 @@ A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skill that provi
 1. Cleans up completed worktrees from previous sessions
 2. Creates a Linear issue with your task description
 3. Creates an isolated git worktree with a new branch
-4. Opens a new Terminal tab with Claude running in the worktree
+4. Creates a Supabase preview branch via MCP (if configured)
+5. Opens a new Terminal tab with Claude running in the worktree
 
 ### `/done`
 
 **In a worktree** (branch with Linear issue):
 1. Gathers and summarizes all changes
-2. Detects Supabase schema changes via `git diff` (adds "Database Changes" section to PR)
+2. Checks for an associated Supabase branch (adds merge instructions to PR)
 3. Commits uncommitted work (with your approval)
 4. Pushes the branch and creates a GitHub PR
 5. Updates the Linear issue with PR link and summary
@@ -34,7 +35,7 @@ A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skill that provi
 
 ### Optional
 
-- [Supabase GitHub integration](https://supabase.com/docs/guides/platform/branching) for automatic preview branches on PRs with database changes
+- [Supabase MCP](https://supabase.com/docs/guides/getting-started/mcp) configured in Claude Code for automatic preview branches at session start
 - [Entire](https://entire.dev) CLI for session checkpoints
 
 ## Installation
@@ -59,8 +60,9 @@ Create `.claude/session-config.json` in your project root:
     "baseBranch": "main"
   },
   "supabase": {
-    "directory": "",
-    "branchingEnabled": false
+    "branchingEnabled": true,
+    "projectId": "your-project-id",
+    "organizationId": "your-org-id"
   },
   "entire": {
     "enabled": false
@@ -80,8 +82,9 @@ Create `.claude/session-config.json` in your project root:
 | `linear.startState` | Issue state when starting a task | `"started"` |
 | `linear.doneState` | Issue state when completing a task | `"done"` |
 | `github.baseBranch` | Base branch for worktrees and PRs | `"main"` |
-| `supabase.directory` | Path to Supabase directory (relative to repo root) | `""` |
-| `supabase.branchingEnabled` | Enable Supabase change detection in `/done` | `false` |
+| `supabase.branchingEnabled` | Create a Supabase preview branch at session start | `false` |
+| `supabase.projectId` | Your Supabase project ID (required if branching enabled) | `""` |
+| `supabase.organizationId` | Your Supabase organization ID (required if branching enabled) | `""` |
 | `entire.enabled` | Enable Entire CLI integration | `false` |
 | `worktrees.directory` | Directory for git worktrees | `".worktrees"` |
 
@@ -94,24 +97,23 @@ Add to `.gitignore`:
 
 ### Supabase Branching
 
-If your project uses Supabase, enable the [GitHub integration](https://supabase.com/dashboard/project/_/settings/integrations) for automatic preview database branches:
+If your project uses Supabase, you can enable automatic preview branch creation via the [Supabase MCP](https://supabase.com/docs/guides/getting-started/mcp):
 
-1. Go to your Supabase project → Settings → Integrations
-2. Connect GitHub and select your repository
-3. Set the Supabase directory (e.g., `apps/web/supabase`)
-4. Enable "Automatic branching" with "Supabase changes only"
+1. Configure the Supabase MCP server in Claude Code
+2. Find your Supabase project ID and organization ID from the Supabase dashboard
+3. Set in your config:
 
-Then set in your config:
 ```json
 {
   "supabase": {
-    "directory": "apps/web/supabase",
-    "branchingEnabled": true
+    "branchingEnabled": true,
+    "projectId": "your-project-id",
+    "organizationId": "your-org-id"
   }
 }
 ```
 
-When `/done` creates a PR, it checks `git diff` for changes in the configured Supabase directory. If changes are found, it adds a "Database Changes" section to the PR body and applies a `supabase` label so the Supabase GitHub integration can create a preview branch automatically.
+When `/start` runs, it creates a dedicated Supabase preview branch for the session. The worktree's Claude session is configured to use this branch for all database operations (schema changes, data mutations, queries). When `/done` creates a PR, it includes merge instructions for the Supabase branch.
 
 ### Entire Integration
 
@@ -159,6 +161,7 @@ This creates:
 - Linear issue: `ENG-123 - Fix login bug on reservation form`
 - Branch: `user/eng-123-fix-login-bug`
 - Worktree: `.worktrees/user-eng-123-fix-login-bug/`
+- Supabase branch: `user-eng-123-fix-login-bug` (if configured)
 - New Terminal tab with Claude session
 
 ### Completing a task
@@ -185,9 +188,18 @@ Each `/start` creates an isolated git worktree — a separate working directory 
 - Keep the main branch clean while tasks are in progress
 - Easily switch between tasks by switching Terminal tabs
 
+### Supabase Branch Lifecycle
+
+When Supabase branching is enabled:
+1. `/start` creates a preview branch via the Supabase MCP
+2. The worktree's `CLAUDE.local.md` and `session-state.json` are configured to route all Supabase MCP calls to the preview branch
+3. During the session, all database operations (migrations, SQL, edge functions) target the preview branch
+4. `/done` includes the branch ID in the PR body with merge instructions
+5. After the PR is merged, the Supabase branch should be merged using `mcp__claude_ai_Supabase__merge_branch`
+
 ### State Management
 
-- `.claude/session-state.json` — Written in each worktree, tracks the current session
+- `.claude/session-state.json` — Written in each worktree, tracks the current session (including Supabase branch info)
 - `.claude/worktree-sessions/<branch>.json` — Written in the main repo, tracks all active worktrees
 - When `/done` runs, it marks the session as "done" so the cleanup script can remove the worktree
 

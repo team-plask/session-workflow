@@ -31,42 +31,8 @@ echo "${STATE_JSON}" | python3 -m json.tool > "${WORKTREE_PATH}/.claude/session-
 [ -f "${MAIN_REPO}/.claude/session-config.json" ] && cp "${MAIN_REPO}/.claude/session-config.json" "${WORKTREE_PATH}/.claude/session-config.json"
 [ -f "${MAIN_REPO}/.entire/settings.json" ] && mkdir -p "${WORKTREE_PATH}/.entire" && cp "${MAIN_REPO}/.entire/settings.json" "${WORKTREE_PATH}/.entire/settings.json"
 
-# Copy .claude/settings.json if it exists (needed as base for deny rules)
+# Copy .claude/settings.json if it exists
 [ -f "${MAIN_REPO}/.claude/settings.json" ] && cp "${MAIN_REPO}/.claude/settings.json" "${WORKTREE_PATH}/.claude/settings.json"
-
-# Add Supabase MCP deny rules to worktree settings (prevent production mutations)
-python3 -c "
-import json, os
-settings_path = '${WORKTREE_PATH}/.claude/settings.json'
-settings = {}
-if os.path.exists(settings_path):
-    with open(settings_path) as f:
-        settings = json.load(f)
-
-perms = settings.setdefault('permissions', {})
-deny = set(perms.get('deny', []))
-
-# Block all mutating Supabase MCP tools in worktree sessions
-# DB changes must be done via migration files, not MCP
-deny.update([
-    'mcp__claude_ai_Supabase__apply_migration',
-    'mcp__claude_ai_Supabase__deploy_edge_function',
-    'mcp__claude_ai_Supabase__create_branch',
-    'mcp__claude_ai_Supabase__delete_branch',
-    'mcp__claude_ai_Supabase__merge_branch',
-    'mcp__claude_ai_Supabase__reset_branch',
-    'mcp__claude_ai_Supabase__rebase_branch',
-    'mcp__claude_ai_Supabase__create_project',
-    'mcp__claude_ai_Supabase__pause_project',
-    'mcp__claude_ai_Supabase__restore_project',
-])
-
-perms['deny'] = sorted(deny)
-settings['permissions'] = perms
-with open(settings_path, 'w') as f:
-    json.dump(settings, f, indent=2)
-    f.write('\n')
-" 2>/dev/null || true
 
 mkdir -p "${MAIN_REPO}/.claude/worktree-sessions"
 echo "${STATE_JSON}" | python3 -m json.tool > "${MAIN_REPO}/.claude/worktree-sessions/${DIR_NAME}.json"
@@ -95,24 +61,18 @@ ALL file paths are relative to THIS directory (the current working directory fro
 - NEVER resolve paths to the parent repository
 - `supabase/` means `./supabase/` in THIS directory
 
-## Supabase: Migration Files Only
-Supabase preview branches are created when the PR is opened (by `/done`).
-During this session, the preview branch does NOT exist yet.
+## Supabase Branch
+This session has a dedicated Supabase preview branch. All database operations
+(schema changes, data mutations) should target this branch, NOT production.
 
-**Rules:**
-- All database schema changes MUST be written as `.sql` migration files in `./supabase/migrations/`
-- Supabase MCP mutating tools are BLOCKED (apply_migration, deploy_edge_function, create/delete/merge/reset/rebase_branch)
-- Supabase MCP read-only tools are allowed (list_tables, list_migrations, execute_sql with SELECT, get_logs, search_docs)
-- `execute_sql` may ONLY be used for SELECT queries — never INSERT, UPDATE, DELETE, CREATE, ALTER, DROP
+Check `.claude/session-state.json` for:
+- `supabaseBranchProjectRef` — use this as the project_id for ALL Supabase MCP calls
+- `supabaseBranchId` — the branch ID for merge/delete operations
 
-**Workflow:** Write migration → `/done` creates PR → Supabase auto-creates preview branch → migrations run on preview
+When using Supabase MCP tools (apply_migration, execute_sql, etc.), always pass
+the `supabaseBranchProjectRef` as the `project_id` parameter.
 
-**If you need a live DB during development:**
-1. Commit the migration file(s)
-2. Push the branch and create a draft PR (`gh pr create --draft`)
-3. Wait for "Supabase Preview" check to create the preview branch
-4. Continue development — Supabase MCP read tools can query the preview branch
-5. When done, convert to ready PR or run `/done` to finalize
+The branch will be merged to production when the PR is merged.
 LOCALEOF
 
 echo "${WORKTREE_PATH}"
