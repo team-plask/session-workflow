@@ -27,6 +27,16 @@ git worktree add "${WORKTREE_PATH}" -b "${BRANCH_NAME}" "origin/${BASE_BRANCH}"
 mkdir -p "${WORKTREE_PATH}/.claude"
 echo "${STATE_JSON}" | python3 -m json.tool > "${WORKTREE_PATH}/.claude/session-state.json"
 
+# Write initial prompt for the launched Claude session
+python3 -c "
+import json, sys
+state = json.loads(sys.stdin.read())
+desc = state.get('taskDescription', '')
+if desc:
+    with open('${WORKTREE_PATH}/.claude/initial-prompt.txt', 'w') as f:
+        f.write(desc)
+" <<< "${STATE_JSON}" 2>/dev/null || true
+
 # Copy gitignored config files that worktrees need
 [ -f "${MAIN_REPO}/.claude/session-config.json" ] && cp "${MAIN_REPO}/.claude/session-config.json" "${WORKTREE_PATH}/.claude/session-config.json"
 [ -f "${MAIN_REPO}/.entire/settings.json" ] && mkdir -p "${WORKTREE_PATH}/.entire" && cp "${MAIN_REPO}/.entire/settings.json" "${WORKTREE_PATH}/.entire/settings.json"

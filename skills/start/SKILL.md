@@ -129,7 +129,7 @@ tell application "System Events"
     tell (first process whose bundle identifier is "com.mitchellh.ghostty")
         keystroke "d" using command down
         delay 0.8
-        set the clipboard to "cd <worktree-path> && claude"
+        set the clipboard to "cd <worktree-path> && claude \"$(cat .claude/initial-prompt.txt)\""
         keystroke "v" using command down
         delay 0.1
         keystroke return
@@ -141,7 +141,7 @@ APPLESCRIPT
 Otherwise fall back to Terminal.app:
 
 ```bash
-osascript -e 'tell application "Terminal" to do script "cd <worktree-path> && claude"'
+osascript -e 'tell application "Terminal" to do script "cd <worktree-path> && claude \"$(cat .claude/initial-prompt.txt)\""'
 ```
 
 Replace `<worktree-path>` with the actual worktree path returned from Step 3.
