@@ -59,13 +59,7 @@ From the response, extract:
 - `gitBranchName` (e.g., "junho/lny-350-fix-login-bug")
 - `url` (e.g., "https://linear.app/.../LNY-350")
 
-### Step 3: Detect Supabase Involvement
-
-If `config.supabase.branchingEnabled` is true, check if the task likely involves Supabase changes by scanning `$ARGUMENTS` for keywords: `migration`, `database`, `db`, `schema`, `table`, `column`, `rls`, `policy`, `function`, `trigger`, `supabase`, `sql`.
-
-Set `involvesSupabase = true` if any keyword matches.
-
-### Step 4: Create Worktree
+### Step 3: Create Worktree
 
 Build the state JSON object:
 
@@ -79,9 +73,7 @@ Build the state JSON object:
   "mainRepoPath": "<repo-root>",
   "taskDescription": "$ARGUMENTS",
   "createdAt": "<current ISO timestamp>",
-  "status": "active",
-  "involvesSupabase": <true|false>,
-  "supabaseDirectory": "<config.supabase.directory>"
+  "status": "active"
 }
 ```
 
@@ -100,7 +92,7 @@ The script will:
 - Write `.claude/session-state.json` inside the worktree
 - Write `.claude/worktree-sessions/<sanitized-branch>.json` in the main repo
 
-### Step 5: Launch Claude in Worktree
+### Step 4: Launch Claude in Worktree
 
 Open a new Terminal tab with Claude running in the worktree:
 
@@ -108,9 +100,9 @@ Open a new Terminal tab with Claude running in the worktree:
 osascript -e 'tell application "Terminal" to do script "cd <worktree-path> && claude"'
 ```
 
-Replace `<worktree-path>` with the actual worktree path returned from Step 4.
+Replace `<worktree-path>` with the actual worktree path returned from Step 3.
 
-### Step 6: Confirm
+### Step 5: Confirm
 
 Print a summary:
 
@@ -118,7 +110,6 @@ Print a summary:
 Linear: <identifier> - <url>
 Branch: <gitBranchName>
 Worktree: <worktrees-dir>/<sanitized-branch>/
-Supabase: <"Will create preview branch on PR" | "Not involved">
 New Terminal tab opened with Claude session
 ```
 

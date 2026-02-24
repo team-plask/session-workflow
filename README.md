@@ -8,15 +8,14 @@ A [Claude Code](https://docs.anthropic.com/en/docs/claude-code) skill that provi
 
 1. Cleans up completed worktrees from previous sessions
 2. Creates a Linear issue with your task description
-3. Detects if the task involves Supabase changes
-4. Creates an isolated git worktree with a new branch
-5. Opens a new Terminal tab with Claude running in the worktree
+3. Creates an isolated git worktree with a new branch
+4. Opens a new Terminal tab with Claude running in the worktree
 
 ### `/done`
 
 **In a worktree** (branch with Linear issue):
 1. Gathers and summarizes all changes
-2. Detects Supabase schema changes (adds "Database Changes" section to PR)
+2. Detects Supabase schema changes via `git diff` (adds "Database Changes" section to PR)
 3. Commits uncommitted work (with your approval)
 4. Pushes the branch and creates a GitHub PR
 5. Updates the Linear issue with PR link and summary
@@ -82,7 +81,7 @@ Create `.claude/session-config.json` in your project root:
 | `linear.doneState` | Issue state when completing a task | `"done"` |
 | `github.baseBranch` | Base branch for worktrees and PRs | `"main"` |
 | `supabase.directory` | Path to Supabase directory (relative to repo root) | `""` |
-| `supabase.branchingEnabled` | Enable Supabase change detection | `false` |
+| `supabase.branchingEnabled` | Enable Supabase change detection in `/done` | `false` |
 | `entire.enabled` | Enable Entire CLI integration | `false` |
 | `worktrees.directory` | Directory for git worktrees | `".worktrees"` |
 
@@ -111,6 +110,8 @@ Then set in your config:
   }
 }
 ```
+
+When `/done` creates a PR, it checks `git diff` for changes in the configured Supabase directory. If changes are found, it adds a "Database Changes" section to the PR body and applies a `supabase` label so the Supabase GitHub integration can create a preview branch automatically.
 
 ### Entire Integration
 

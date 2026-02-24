@@ -58,13 +58,13 @@ Build a concise summary of changes from conversation history + the above output.
 
 ### Step 2: Detect Supabase Changes
 
-If `config.supabase.branchingEnabled` and `config.supabase.directory` is set:
+If `config.supabase.branchingEnabled` and `config.supabase.directory` is set, check for Supabase file changes:
 
 ```bash
-git diff <baseBranch> --name-only -- <supabase-directory>
+git diff <baseBranch> --name-only -- <config.supabase.directory>
 ```
 
-If there are supabase file changes, set `hasSupabaseChanges = true` and collect the changed files list.
+If there are changed files, set `hasSupabaseChanges = true` and collect the changed files list.
 
 ### Step 3: Commit (if needed)
 
