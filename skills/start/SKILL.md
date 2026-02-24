@@ -5,6 +5,8 @@ user-invocable: true
 allowed-tools: Bash(git:*) Bash(osascript:*) Bash(bash:*) mcp__linear-server__create_issue mcp__claude_ai_Linear__create_issue mcp__claude_ai_Supabase__create_branch mcp__claude_ai_Supabase__get_cost mcp__claude_ai_Supabase__confirm_cost
 ---
 
+> **Implementation note:** Steps 1, 3, 4, 5 are purely mechanical — execute them without deliberation. Only Step 2 (Linear issue) requires judgment for the title.
+
 # Start Task Session
 
 Create a Linear issue, git worktree, and launch a new Claude session for the task.
@@ -40,7 +42,7 @@ bash "$(dirname "$(claude skill path start")")/scripts/done-cleanup.sh" 2>/dev/n
 If the skill script path isn't resolvable, fall back to:
 ```bash
 # Find the done-cleanup.sh in .claude/skills
-find .claude/skills -name "done-cleanup.sh" -exec bash {} \; 2>/dev/null || true
+find -L .claude/skills -name "done-cleanup.sh" -exec bash {} \; 2>/dev/null || true
 ```
 
 ### Step 2: Create Linear Issue
@@ -83,7 +85,7 @@ Run the worktree creation script:
 
 ```bash
 # Find the start-worktree.sh script
-SCRIPT=$(find .claude/skills -name "start-worktree.sh" | head -1)
+SCRIPT=$(find -L .claude/skills -name "start-worktree.sh" | head -1)
 bash "$SCRIPT" "<gitBranchName>" '<state-json>'
 ```
 
