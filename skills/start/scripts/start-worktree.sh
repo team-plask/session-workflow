@@ -106,6 +106,13 @@ During this session, the preview branch does NOT exist yet.
 - `execute_sql` may ONLY be used for SELECT queries — never INSERT, UPDATE, DELETE, CREATE, ALTER, DROP
 
 **Workflow:** Write migration → `/done` creates PR → Supabase auto-creates preview branch → migrations run on preview
+
+**If you need a live DB during development:**
+1. Commit the migration file(s)
+2. Push the branch and create a draft PR (`gh pr create --draft`)
+3. Wait for "Supabase Preview" check to create the preview branch
+4. Continue development — Supabase MCP read tools can query the preview branch
+5. When done, convert to ready PR or run `/done` to finalize
 LOCALEOF
 
 echo "${WORKTREE_PATH}"
