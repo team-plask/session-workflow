@@ -2,7 +2,7 @@
 name: done
 description: Wrap up the current session — commits, pushes, creates PR, updates Linear. Detects worktree vs main branch context automatically.
 user-invocable: true
-allowed-tools: Bash(git:*) Bash(gh:*) Bash(entire:*) Bash(cat:*) Bash(python3:*) mcp__linear-server__create_comment mcp__linear-server__update_issue mcp__linear-server__create_issue mcp__claude_ai_Linear__create_comment mcp__claude_ai_Linear__update_issue mcp__claude_ai_Linear__create_issue
+allowed-tools: Bash(git:*) Bash(gh:*) Bash(entire:*) Bash(cat:*) Bash(python3:*) mcp__linear-server__create_comment mcp__linear-server__update_issue mcp__linear-server__create_issue mcp__claude_ai_Linear__create_comment mcp__claude_ai_Linear__update_issue mcp__claude_ai_Linear__create_issue mcp__claude_ai_Supabase__merge_branch mcp__claude_ai_Supabase__delete_branch
 ---
 
 # Session Wrap-up
@@ -37,7 +37,7 @@ Read `.claude/session-config.json` if it exists, otherwise use these defaults:
 
 ## WORKTREE FLOW
 
-You MUST complete ALL 7 steps below. Do NOT stop early. Do NOT skip any step.
+You MUST complete ALL 9 steps below. Do NOT stop early. Do NOT skip any step.
 
 ### W1: Gather Changes
 
@@ -101,7 +101,27 @@ gh pr create --title "<linearIssueIdentifier>: <short-title>" --body "<body>" --
 
 Save the PR URL from the output.
 
-### W6: Update Linear
+### W6: Merge PR and Supabase Branch
+
+THIS STEP IS MANDATORY. You MUST merge the PR.
+
+Merge the PR:
+```bash
+gh pr merge <pr-number> --merge
+```
+
+If `hasSupabaseBranch` (from W2), merge the Supabase branch to production:
+
+Use `mcp__claude_ai_Supabase__merge_branch` with:
+- branch_id: the `supabaseBranchId` from session-state
+
+If merge fails (e.g., migrations failed status), delete the branch instead:
+Use `mcp__claude_ai_Supabase__delete_branch` with:
+- branch_id: the `supabaseBranchId`
+
+Note: The GitHub integration will apply migration files from main automatically.
+
+### W7: Update Linear
 
 Extract `linearIssueId` from `.claude/session-state.json`.
 
@@ -117,7 +137,7 @@ Use `mcp__linear-server__update_issue` (or `mcp__claude_ai_Linear__update_issue`
 - id: the linearIssueId
 - state: config.linear.doneState (default: "done")
 
-### W7: Mark for Cleanup and Confirm
+### W8: Mark for Cleanup and Confirm
 
 Update the main repo's worktree session file. The `mainRepoPath` and `linearBranchName` are in session-state.json. The file is at:
 `<mainRepoPath>/.claude/worktree-sessions/<linearBranchName with / replaced by ->.json`
@@ -134,10 +154,12 @@ json.dump(d, open(path, 'w'), indent=2)
 
 Also update local `.claude/session-state.json` status to "done".
 
+### W9: Confirm
+
 Print:
-- PR URL
+- PR merged: <PR URL>
 - Linear issue: <identifier> → Done
-- If `hasSupabaseBranch`: "Supabase branch `<supabaseBranchId>` should be merged after PR is merged."
+- If `hasSupabaseBranch`: "Supabase branch merged to production"
 - "Close this terminal tab."
 
 ---
