@@ -2,233 +2,190 @@
 name: done
 description: Wrap up the current session — commits, pushes, creates PR, updates Linear. Detects worktree vs main branch context automatically.
 user-invocable: true
-allowed-tools: Bash(git:*) Bash(gh:*) Bash(entire:*) mcp__linear-server__create_comment mcp__linear-server__update_issue mcp__linear-server__create_issue mcp__claude_ai_Linear__create_comment mcp__claude_ai_Linear__update_issue mcp__claude_ai_Linear__create_issue
+allowed-tools: Bash(git:*) Bash(gh:*) Bash(entire:*) Bash(cat:*) Bash(python3:*) mcp__linear-server__create_comment mcp__linear-server__update_issue mcp__linear-server__create_issue mcp__claude_ai_Linear__create_comment mcp__claude_ai_Linear__update_issue mcp__claude_ai_Linear__create_issue
 ---
 
 # Session Wrap-up
 
-Wrap up the current session. Behavior depends on whether you're in a worktree or on main.
+## Step 1: Detect Context
 
-## Instructions
-
-### Step 0: Load Config & Detect Context
-
-Read `.claude/session-config.json` from the project root. If it doesn't exist, use defaults:
-
-```json
-{
-  "linear": { "team": "Engineering", "labels": ["claude-session"], "doneState": "done" },
-  "github": { "baseBranch": "main" },
-  "supabase": { "directory": "", "branchingEnabled": false },
-  "entire": { "enabled": false },
-  "worktrees": { "directory": ".worktrees" }
-}
-```
-
-Detect context by running:
+Run ALL of these commands:
 
 ```bash
-CURRENT_BRANCH=$(git branch --show-current)
-IS_WORKTREE=$([ -f .git ] && echo "true" || echo "false")
-echo "Branch: $CURRENT_BRANCH | Is worktree: $IS_WORKTREE"
+echo "=== CONTEXT ==="
+echo "Branch: $(git branch --show-current)"
+echo "Is worktree: $([ -f .git ] && echo YES || echo NO)"
+echo "Has session-state: $([ -f .claude/session-state.json ] && echo YES || echo NO)"
+[ -f .claude/session-state.json ] && cat .claude/session-state.json
+echo "=== END CONTEXT ==="
 ```
 
-Then read `.claude/session-state.json` if it exists.
+Read `.claude/session-config.json` if it exists, otherwise use these defaults:
+- linear.team: "Engineering"
+- linear.labels: ["claude-session"]
+- linear.doneState: "done"
+- github.baseBranch: "main"
+- supabase.directory: ""
+- supabase.branchingEnabled: false
+- entire.enabled: false
 
-**IMPORTANT — Use this decision tree:**
+**Now decide:**
 
-1. If `.git` is a **file** (not a directory) → you ARE in a git worktree
-2. If `session-state.json` exists AND contains `linearIssueId` → you have a linked Linear issue
-3. If BOTH are true → take the **Worktree Path** below
-4. Otherwise → take the **Main Path** below
-
-**Do NOT skip to the Main Path.** If you are on a non-main branch with a session-state.json that has a linearIssueId, you MUST take the Worktree Path.
+- If "Is worktree: YES" AND session-state.json contains `linearIssueId` → go to **WORKTREE FLOW** below
+- Otherwise → go to **MAIN FLOW** below
 
 ---
 
-## Worktree Path (branch with Linear issue)
+## WORKTREE FLOW
 
-### Step 1: Gather Changes
+You MUST complete ALL 7 steps below. Do NOT stop early. Do NOT skip any step.
 
-Run these to understand what was done:
+### W1: Gather Changes
 
 ```bash
-git diff <baseBranch> --stat
-git log <baseBranch>..HEAD --oneline
+git diff main --stat
+git log main..HEAD --oneline
 ```
 
-If `config.entire.enabled`:
+If entire is enabled in config:
 ```bash
 entire explain --short 2>&1 || true
 ```
 
-Build a concise summary of changes from conversation history + the above output.
+Write a concise summary of what changed.
 
-### Step 2: Detect Supabase Changes
+### W2: Check for Supabase Changes
 
-If `config.supabase.branchingEnabled` and `config.supabase.directory` is set, check for Supabase file changes:
+If `config.supabase.branchingEnabled` is true AND `config.supabase.directory` is set:
 
 ```bash
-git diff <baseBranch> --name-only -- <config.supabase.directory>
+git diff main --name-only -- <supabase-directory>
 ```
 
-If there are changed files, set `hasSupabaseChanges = true` and collect the changed files list.
+Note any changed files. If there are changes, you will add a "Database Changes" section to the PR.
 
-### Step 3: Commit (if needed)
-
-Check for uncommitted changes:
+### W3: Commit Uncommitted Work
 
 ```bash
 git status --porcelain
 ```
 
-If there are uncommitted changes, ask the user if they want to commit. If yes, stage and commit with a descriptive message.
+If there are uncommitted changes, ask the user whether to commit. If yes, stage all and commit with a descriptive message.
 
-### Step 4: Push Branch
+### W4: Push Branch
 
 ```bash
-git push -u origin <branch-name>
+git push -u origin $(git branch --show-current)
 ```
 
-Use the branch name from `git branch --show-current`.
+### W5: Create Pull Request
 
-### Step 5: Create Pull Request
+THIS STEP IS MANDATORY. You MUST create a PR.
 
-Build the PR body. Start with the standard summary, then conditionally add sections:
+Build the PR body with your summary. If there were Supabase changes from W2, append:
 
-**Standard sections:**
-- Summary of changes
-- Key decisions made
-- Files modified (grouped by purpose)
-
-**If `hasSupabaseChanges`:**
-Add a "Database Changes" section:
-```markdown
+```
 ## Database Changes
 
 This PR includes Supabase schema changes that will trigger a preview branch:
-
-<list of changed files from Step 2>
+- <list files>
 
 The Supabase GitHub integration will automatically create a preview database branch for this PR.
 ```
 
-Create the PR:
+Now create the PR:
 
 ```bash
-gh pr create --title "<identifier>: <short-title>" --body "<summary>" --base <baseBranch>
+gh pr create --title "<linearIssueIdentifier>: <short-title>" --body "<body>" --base main
 ```
 
-If `hasSupabaseChanges`, also add the `supabase` label:
+If Supabase changes exist, also run:
 ```bash
 gh pr edit --add-label "supabase" 2>/dev/null || true
 ```
 
-### Step 6: Update Linear
+Save the PR URL from the output.
 
-Use Linear MCP tools (try `mcp__linear-server__*` first, fall back to `mcp__claude_ai_Linear__*`).
+### W6: Update Linear
 
-Add a comment on the Linear issue (`linearIssueId` from session-state) with:
-- PR URL
-- Summary of changes
-- If supabase changes: note about preview database branch
+Extract `linearIssueId` from `.claude/session-state.json`.
 
-Then update the issue state to `config.linear.doneState`.
+First, add a comment with the PR URL and summary:
 
-### Step 7: Mark for Cleanup
+Use `mcp__linear-server__create_comment` (or `mcp__claude_ai_Linear__create_comment`):
+- issueId: the linearIssueId
+- body: include PR URL and summary
 
-Read the worktree session file from the main repo:
-`<mainRepoPath>/.claude/worktree-sessions/<sanitized-branch>.json`
+Then, update the issue state to done:
 
-Update the file: set `"status": "done"`.
-Also update the local `.claude/session-state.json` with `"status": "done"`.
+Use `mcp__linear-server__update_issue` (or `mcp__claude_ai_Linear__update_issue`):
+- id: the linearIssueId
+- state: config.linear.doneState (default: "done")
 
-### Step 8: Confirm
+### W7: Mark for Cleanup and Confirm
+
+Update the main repo's worktree session file. The `mainRepoPath` and `linearBranchName` are in session-state.json. The file is at:
+`<mainRepoPath>/.claude/worktree-sessions/<linearBranchName with / replaced by ->.json`
+
+```bash
+python3 -c "
+import json
+path = '<mainRepoPath>/.claude/worktree-sessions/<sanitized-branch>.json'
+d = json.load(open(path))
+d['status'] = 'done'
+json.dump(d, open(path, 'w'), indent=2)
+"
+```
+
+Also update local `.claude/session-state.json` status to "done".
 
 Print:
 - PR URL
-- Linear issue identifier + "Done" status
-- If supabase changes: "Supabase preview branch will be created automatically"
-- Tell the user: "Close this terminal tab."
+- Linear issue: <identifier> → Done
+- If Supabase changes: "Supabase preview branch will be created automatically"
+- "Close this terminal tab."
 
 ---
 
-## Main Path (fallback — no worktree)
+## MAIN FLOW
 
-### Step 1: Gather Minimal Context
+For sessions on the main branch without a worktree.
 
-Run:
+### M1: Gather Context
 
 ```bash
 git branch --show-current
 ```
 
-If `config.entire.enabled`:
+If entire is enabled:
 ```bash
 entire status 2>&1
 ```
 
-Extract the current session ID from entire status output, then:
-
+Extract session ID from output, then:
 ```bash
 entire explain --session <session_id> --short 2>&1
 ```
 
-Check for linked Linear issue in `.claude/session-state.json`.
+Check `.claude/session-state.json` for a linked Linear issue.
 
-### Step 2: Assess Work Type
+### M2: Build Summary
 
-Based on conversation history and checkpoint summary, classify:
-
-| Type | Examples | Needs git diff? |
-|------|----------|----------------|
-| **code** | Feature, bugfix, refactor | Yes |
-| **config** | Supabase dashboard, Linear setup | No |
-| **research** | Investigation, planning | No |
-| **ops** | Deploy, server config | No |
-
-Only run `git diff --stat` if type is **code** or files were changed.
-
-### Step 3: Build Summary
-
-Write a concise summary with only relevant sections:
-
-- **Summary** — what was accomplished (always)
-- **Key Decisions** — only if architectural/design decisions were made
-- **Files Changed** — only if files were changed, grouped by purpose
+Based on conversation history, write a concise summary:
+- **Summary** — what was accomplished
+- **Files Changed** — only if files were changed
 - **Follow-ups** — only if there are open items
-- **Metadata** — session ID, branch, date (always)
 
-### Step 4: Push to Linear
+### M3: Push to Linear
 
-Use Linear MCP tools. Team is `config.linear.team`.
-
-**If session-state has `linearIssueId`:**
+If session-state has `linearIssueId`:
 - Add a comment to the existing issue
 
-**If no linked issue:**
-- Create a new issue:
-  - **team**: `config.linear.team`
-  - **title**: Short, descriptive (e.g., "Session: Configure Supabase branching")
-  - **labels**: `config.linear.labels`
-  - **description**: The summary from Step 3
+If no linked issue:
+- Create a new issue with team from config, labels from config, and the summary as description
 
-### Step 5: Save State
+### M4: Save State and Confirm
 
-Write `.claude/session-state.json`:
+Write `.claude/session-state.json` with the issue details and current timestamp.
 
-```json
-{
-  "linearIssueId": "<the issue ID>",
-  "linearIssueIdentifier": "<e.g. LNY-123>",
-  "sessionId": "<entire session ID>",
-  "branch": "<branch name>",
-  "lastUpdated": "<ISO timestamp>"
-}
-```
-
-### Step 6: Confirm
-
-Tell the user:
-- Linear issue identifier and URL
-- One-line summary of what was tracked
+Print the Linear issue identifier and a one-line summary.
