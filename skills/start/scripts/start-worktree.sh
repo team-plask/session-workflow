@@ -31,6 +31,43 @@ echo "${STATE_JSON}" | python3 -m json.tool > "${WORKTREE_PATH}/.claude/session-
 [ -f "${MAIN_REPO}/.claude/session-config.json" ] && cp "${MAIN_REPO}/.claude/session-config.json" "${WORKTREE_PATH}/.claude/session-config.json"
 [ -f "${MAIN_REPO}/.entire/settings.json" ] && mkdir -p "${WORKTREE_PATH}/.entire" && cp "${MAIN_REPO}/.entire/settings.json" "${WORKTREE_PATH}/.entire/settings.json"
 
+# Copy .claude/settings.json if it exists (needed as base for deny rules)
+[ -f "${MAIN_REPO}/.claude/settings.json" ] && cp "${MAIN_REPO}/.claude/settings.json" "${WORKTREE_PATH}/.claude/settings.json"
+
+# Add Supabase MCP deny rules to worktree settings (prevent production mutations)
+python3 -c "
+import json, os
+settings_path = '${WORKTREE_PATH}/.claude/settings.json'
+settings = {}
+if os.path.exists(settings_path):
+    with open(settings_path) as f:
+        settings = json.load(f)
+
+perms = settings.setdefault('permissions', {})
+deny = set(perms.get('deny', []))
+
+# Block all mutating Supabase MCP tools in worktree sessions
+# DB changes must be done via migration files, not MCP
+deny.update([
+    'mcp__claude_ai_Supabase__apply_migration',
+    'mcp__claude_ai_Supabase__deploy_edge_function',
+    'mcp__claude_ai_Supabase__create_branch',
+    'mcp__claude_ai_Supabase__delete_branch',
+    'mcp__claude_ai_Supabase__merge_branch',
+    'mcp__claude_ai_Supabase__reset_branch',
+    'mcp__claude_ai_Supabase__rebase_branch',
+    'mcp__claude_ai_Supabase__create_project',
+    'mcp__claude_ai_Supabase__pause_project',
+    'mcp__claude_ai_Supabase__restore_project',
+])
+
+perms['deny'] = sorted(deny)
+settings['permissions'] = perms
+with open(settings_path, 'w') as f:
+    json.dump(settings, f, indent=2)
+    f.write('\n')
+" 2>/dev/null || true
+
 mkdir -p "${MAIN_REPO}/.claude/worktree-sessions"
 echo "${STATE_JSON}" | python3 -m json.tool > "${MAIN_REPO}/.claude/worktree-sessions/${DIR_NAME}.json"
 
@@ -46,22 +83,29 @@ if [ -d "${MAIN_REPO}/.agents/skills" ]; then
   done
 fi
 
-# Create worktree-specific path safety instructions (Claude Code bug workaround)
+# Create worktree-specific instructions (Claude Code bug workaround)
 # See: https://github.com/anthropics/claude-code/issues/8771
 cat > "${WORKTREE_PATH}/CLAUDE.local.md" << 'LOCALEOF'
-# Worktree Path Safety
+# Worktree Session Rules
 
-**This is a git worktree, NOT the main repository.**
-
+## Path Safety
+This is a git worktree, NOT the main repository.
 ALL file paths are relative to THIS directory (the current working directory from `<env>`).
-NEVER resolve paths to the parent repository at the main repo location.
+- Use `./` prefix for all file operations
+- NEVER resolve paths to the parent repository
+- `supabase/` means `./supabase/` in THIS directory
 
-When creating or editing files:
-- Use `./` prefix: `./supabase/migrations/`, `./apps/web/`, `./packages/`
-- Verify with `pwd` before writing if unsure
-- The `supabase/` directory means `./supabase/` in THIS worktree directory
+## Supabase: Migration Files Only
+Supabase preview branches are created when the PR is opened (by `/done`).
+During this session, the preview branch does NOT exist yet.
 
-Session state is in `.claude/session-state.json` in this directory.
+**Rules:**
+- All database schema changes MUST be written as `.sql` migration files in `./supabase/migrations/`
+- Supabase MCP mutating tools are BLOCKED (apply_migration, deploy_edge_function, create/delete/merge/reset/rebase_branch)
+- Supabase MCP read-only tools are allowed (list_tables, list_migrations, execute_sql with SELECT, get_logs, search_docs)
+- `execute_sql` may ONLY be used for SELECT queries — never INSERT, UPDATE, DELETE, CREATE, ALTER, DROP
+
+**Workflow:** Write migration → `/done` creates PR → Supabase auto-creates preview branch → migrations run on preview
 LOCALEOF
 
 echo "${WORKTREE_PATH}"
