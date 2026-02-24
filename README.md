@@ -191,6 +191,10 @@ Each `/start` creates an isolated git worktree — a separate working directory 
 - `.claude/worktree-sessions/<branch>.json` — Written in the main repo, tracks all active worktrees
 - When `/done` runs, it marks the session as "done" so the cleanup script can remove the worktree
 
+### Skills Installation
+
+When a worktree is created, skills installed via `npx skills add` (which live in `.agents/` and `.claude/skills/`) are automatically copied into the worktree. Since these directories are not tracked by git, the start script copies `.agents/` and recreates the `.claude/skills/` symlinks so that `/start` and `/done` commands work in worktrees identically to the main repo.
+
 ### Cleanup
 
 Completed worktrees are cleaned up automatically on the next `/start` or session start (via hook). The cleanup script:

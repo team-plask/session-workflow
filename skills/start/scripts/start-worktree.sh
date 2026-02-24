@@ -34,4 +34,16 @@ echo "${STATE_JSON}" | python3 -m json.tool > "${WORKTREE_PATH}/.claude/session-
 mkdir -p "${MAIN_REPO}/.claude/worktree-sessions"
 echo "${STATE_JSON}" | python3 -m json.tool > "${MAIN_REPO}/.claude/worktree-sessions/${DIR_NAME}.json"
 
+
+# Copy skills installation to worktree (not in git, created by npx skills add)
+if [ -d "${MAIN_REPO}/.agents/skills" ]; then
+  cp -R "${MAIN_REPO}/.agents" "${WORKTREE_PATH}/.agents"
+  mkdir -p "${WORKTREE_PATH}/.claude/skills"
+  for skill_dir in "${MAIN_REPO}/.claude/skills"/*; do
+    [ -e "$skill_dir" ] || continue
+    skill_name=$(basename "$skill_dir")
+    ln -sf "../../.agents/skills/${skill_name}" "${WORKTREE_PATH}/.claude/skills/${skill_name}"
+  done
+fi
+
 echo "${WORKTREE_PATH}"
