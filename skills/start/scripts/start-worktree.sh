@@ -27,6 +27,10 @@ git worktree add "${WORKTREE_PATH}" -b "${BRANCH_NAME}" "origin/${BASE_BRANCH}"
 mkdir -p "${WORKTREE_PATH}/.claude"
 echo "${STATE_JSON}" | python3 -m json.tool > "${WORKTREE_PATH}/.claude/session-state.json"
 
+# Copy gitignored config files that worktrees need
+[ -f "${MAIN_REPO}/.claude/session-config.json" ] && cp "${MAIN_REPO}/.claude/session-config.json" "${WORKTREE_PATH}/.claude/session-config.json"
+[ -f "${MAIN_REPO}/.entire/settings.json" ] && mkdir -p "${WORKTREE_PATH}/.entire" && cp "${MAIN_REPO}/.entire/settings.json" "${WORKTREE_PATH}/.entire/settings.json"
+
 mkdir -p "${MAIN_REPO}/.claude/worktree-sessions"
 echo "${STATE_JSON}" | python3 -m json.tool > "${MAIN_REPO}/.claude/worktree-sessions/${DIR_NAME}.json"
 

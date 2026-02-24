@@ -25,16 +25,24 @@ Read `.claude/session-config.json` from the project root. If it doesn't exist, u
 }
 ```
 
-Detect context:
+Detect context by running:
 
 ```bash
-git branch --show-current
+CURRENT_BRANCH=$(git branch --show-current)
+IS_WORKTREE=$([ -f .git ] && echo "true" || echo "false")
+echo "Branch: $CURRENT_BRANCH | Is worktree: $IS_WORKTREE"
 ```
 
-Read `.claude/session-state.json` if it exists.
+Then read `.claude/session-state.json` if it exists.
 
-**Worktree path**: branch is NOT `config.github.baseBranch` AND `session-state.json` contains `linearIssueId` and `linearBranchName`
-**Main path**: branch IS `config.github.baseBranch` OR no valid session-state
+**IMPORTANT — Use this decision tree:**
+
+1. If `.git` is a **file** (not a directory) → you ARE in a git worktree
+2. If `session-state.json` exists AND contains `linearIssueId` → you have a linked Linear issue
+3. If BOTH are true → take the **Worktree Path** below
+4. Otherwise → take the **Main Path** below
+
+**Do NOT skip to the Main Path.** If you are on a non-main branch with a session-state.json that has a linearIssueId, you MUST take the Worktree Path.
 
 ---
 
